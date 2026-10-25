@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Пиксельный Аквариум - Тамагочи</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-top: #072227;
+            --bg-bottom: #041014;
+            --kelp-glow: #4eff2b;
+            --ui-bg: rgba(10, 25, 35, 0.92);
+            --ui-border: #38bdf8;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #090a0f;
+            color: #e2e8f0;
+            font-family: 'Rubik', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .pixel-font {
+            font-family: 'Press Start 2P', monospace;
+            letter-spacing: -0.5px;
+        }
+
+        /* Корпус ретро-девайса */
+        #device-frame {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 960px;
+            max-height: 640px;
+            background: #18181b;
+            border: 8px solid #27272a;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 0 15px rgba(0,0,0,0.9);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (max-width: 768px) {
+            #device-frame {
+                max-width: 100%;
+                max-height: 100%;
+                border-width: 4px;
+                border-radius: 0;
+            }
+        }
+
+        /* Эффект старого экрана (Scanlines) */
+        .crt-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.18) 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 40;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* Плашка монет как в видео */
+        .coin-toast {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.9);
+            border: 2px solid #facc15;
+            color: #facc15;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+            z-index: 35;
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+            animation: popAndFloat 1.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes popAndFloat {
+            0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+            20% { opacity: 1; transform: translate(-50%, -15px) scale(1.05); }
+            80% { opacity: 1; transform: translate(-50%, -35px) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50px) scale(0.9); }
+        }
+
+        /* Сегментированные бары характеристик из видео */
+        .seg-bar {
+            display: flex;
+            gap: 3px;
+            background: #09131c;
+            padding: 3px;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            width: 110px;
+        }
+        .seg-block {
+            height: 10px;
+            flex: 1;
+            border-radius: 1px;
+            background: #1e293b;
+            transition: background-color 0.2s;
+        }
+
+        /* Ползунки характера рыбки */
+        .trait-line {
+            position: relative;
+            height: 2px;
+            background: #475569;
+            flex: 1;
+            margin: 0 8px;
+        }
+        .trait-dot {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #38bdf8;
+            box-shadow: 0 0 6px #38bdf8;
+        }
+
+        /* Кнопки инструментов */
+        .tool-btn {
+            background: rgba(15, 23, 42, 0.85);
+            border: 2px solid #334155;
+            color: #94a3b8;
+            transition: all 0.15s ease;
+        }
+        .tool-btn:hover {
+            border-color: #64748b;
+            color: #f8fafc;
+        }
+        .tool-btn.active {
+            background: rgba(14, 116, 144, 0.9);
+            border-color: #38bdf8;
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+            transform: translateY(-2px);
+        }
+
+        /* Ретро-кнопки в модальных окнах */
+        .retro-btn {
+            background: #0f172a;
+            border: 2px solid #38bdf8;
+            color: #38bdf8;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            padding: 8px 10px;
+            border-radius: 4px;
+            transition: all 0.1s;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .retro-btn:hover:not(:disabled) {
+            background: #38bdf8;
+            color: #090d16;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+        }
+        .retro-btn:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+        .retro-btn:disabled {
+            border-color: #334155;
+            color: #475569;
+            cursor: not-allowed;
+        }
+
+        /* Улучшенный скроллбар для списка рыбок и меню */
+        .custom-scroll {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            overscroll-behavior: contain;
+        }
+        .custom-scroll * {
+            touch-action: pan-y;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #071018; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 4px; border: 1px solid #09131c; }
+    </style>
+</head>
+<body>
+
+    <div id="device-frame">
+        <div class="crt-overlay"></div>
+
+        <!-- Верхний HUD -->
+        <div class="absolute top-3 left-3 right-3 flex justify-between items-start z-20 pointer-events-none">
+            <!-- Баланс и инфо -->
+            <div class="flex flex-wrap gap-1.5 sm:gap-2 pointer-events-auto">
+                <div class="bg-slate-900/90 border-2 border-yellow-400 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg">
+                    <span class="w-4 h-4 rounded-full bg-yellow-400 text-slate-950 font-black flex items-center justify-center text-xs">₽</span>
+                    <span id="coin-count" class="pixel-font text-yellow-400 text-xs sm:text-sm">50</span>
+                </div>
+
+                <div class="bg-slate-900/85 border border-slate-700 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs text-slate-300" title="Чистота стекла аквариума">
+                    <span>🧼 Стекло:</span>
+                    <span id="clean-percent" class="font-bold text-emerald-400">100%</span>
+                </div>
+
+                <div class="bg-slate-900/85 border border-slate-700 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs text-slate-300" title="Средняя высота водорослей (растут ~1 см в сутки)">
+                    <span>🌿 Трава:</span>
+                    <span id="kelp-cm-hud" class="font-bold text-lime-400">2.5 см</span>
+                </div>
+                
+                <div id="save-indicator" class="bg-slate-900/85 border border-slate-700 px-2 py-1.5 rounded-lg flex items-center gap-1 text-[10px] text-slate-400 opacity-0 transition-opacity duration-300">
+                    <span>💾 Сохранено</span>
+                </div>
+            </div>
+
+            <!-- Быстрые кнопки справа -->
+            <div class="flex gap-1.5 sm:gap-2 pointer-events-auto">
+                <button id="btn-light" class="tool-btn w-10 h-10 rounded-lg flex items-center justify-center text-lg" title="Переключить День / Ночь">
+                    ☀️
+                </button>
+                <button id="btn-open-fishes" class="tool-btn px-2.5 h-10 rounded-lg flex items-center gap-1 text-xs font-bold border-emerald-500/60 text-emerald-300" title="Список всех рыбок">
+                    <span>🐟</span> <span id="hud-fish-counter" class="pixel-font text-[9px]">2/10</span>
+                </button>
+                <button id="btn-open-hub" class="tool-btn px-2.5 h-10 rounded-lg flex items-center gap-1.5 text-xs font-bold border-cyan-500/60 text-cyan-300">
+                    <span>📟</span> <span class="hidden sm:inline pixel-font text-[9px]">МЕНЮ</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Подсказка текущего режима -->
+        <div id="mode-hint" class="absolute top-16 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-slate-600/80 px-3 py-1 rounded-full text-[11px] sm:text-xs text-slate-200 pointer-events-none z-10 whitespace-nowrap shadow">
+            👆 Нажмите на рыбку для инфо или по воде, чтобы постучать
+        </div>
+
+        <!-- Игровой Холст -->
+        <div class="relative flex-1 w-full h-full overflow-hidden" id="canvas-wrapper">
+            <canvas id="aqCanvas"></canvas>
+
+            <!-- Карточка рыбки (с переключением между всеми рыбками) -->
+            <div id="fish-card" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94%] max-w-[430px] bg-[#0c1926]/95 border-2 border-[#38bdf8] rounded-xl p-3.5 sm:p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.9)]">
+                <!-- Верхняя панель карточки с переключением Пред/След -->
+                <div class="flex justify-between items-center border-b border-slate-700 pb-2 mb-3">
+                    <div class="flex items-center gap-1.5">
+                        <button id="btn-prev-fish" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-600 rounded px-2 py-0.5 text-xs font-bold" title="Предыдущая рыбка">◀</button>
+                        <span id="card-fish-icon" class="text-lg">🐟</span>
+                        <h2 id="card-fish-name" class="pixel-font text-white text-xs sm:text-sm tracking-wide">МИРА</h2>
+                        <button id="btn-rename-fish" class="text-xs text-slate-400 hover:text-cyan-300 px-1" title="Сменить имя">✏️</button>
+                        <button id="btn-next-fish" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-600 rounded px-2 py-0.5 text-xs font-bold" title="Следующая рыбка">▶</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="card-fish-index" class="text-[11px] text-slate-400 font-bold">1/2</span>
+                        <button id="btn-close-card" class="text-slate-400 hover:text-white font-bold px-1.5 text-lg leading-none">✕</button>
+                    </div>
+                </div>
+
+                <!-- Стадия роста и емкость животика -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-1.5 mb-3 flex flex-wrap justify-between items-center text-xs gap-2">
+                    <div>
+                        <span class="text-slate-400">Стадия:</span>
+                        <b id="card-fish-stage" class="text-amber-300 ml-1">Малёк</b>
+                    </div>
+                    <div>
+                        <span class="text-slate-400">Животик:</span>
+                        <b id="card-fish-stomach" class="text-emerald-300 ml-1">Сыта (85%)</b>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center">
+                    <!-- Левая колонка: 4 шкалы с русскими подписями -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between gap-2" title="Сытость (тратится за 12-16 часов)">
+                            <span class="text-xs text-slate-300 flex items-center gap-1">🍔 Сытость</span>
+                            <div class="seg-bar" id="bar-hunger"></div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2" title="Энергия и бодрость">
+                            <span class="text-xs text-slate-300 flex items-center gap-1">⚡ Бодрость</span>
+                            <div class="seg-bar" id="bar-energy"></div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2" title="Спокойствие (падает при резком стуке)">
+                            <span class="text-xs text-slate-300 flex items-center gap-1">💥 Покой</span>
+                            <div class="seg-bar" id="bar-calm"></div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2" title="Привыкание и любовь к хозяину">
+                            <span class="text-xs text-slate-300 flex items-center gap-1">❤️ Дружба</span>
+                            <div class="seg-bar" id="bar-trust"></div>
+                        </div>
+                    </div>
+
+                    <!-- Правая колонка: черты характера и кнопка меню -->
+                    <div class="flex flex-col justify-between h-full space-y-2.5 bg-slate-900/70 p-2.5 rounded-lg border border-slate-800">
+                        <div class="space-y-2 text-[11px] text-slate-300">
+                            <div class="flex items-center justify-between" title="Темперамент: Спокойная — Шустрая">
+                                <span>🌿 Тихая</span>
+                                <div class="trait-line"><div id="trait-speed" class="trait-dot" style="left: 60%;"></div></div>
+                                <span>Шустрая 🚀</span>
+                            </div>
+                            <div class="flex items-center justify-between" title="Храбрость: Пугливая — Смелая">
+                                <span>👻 Трусишка</span>
+                                <div class="trait-line"><div id="trait-brave" class="trait-dot" style="left: 40%;"></div></div>
+                                <span>Смелая 🦁</span>
+                            </div>
+                            <div class="flex items-center justify-between" title="Общительность: Одиночка — Стайная">
+                                <span>🐚 Сама</span>
+                                <div class="trait-line"><div id="trait-social" class="trait-dot" style="left: 75%;"></div></div>
+                                <span>Дружная 🐠</span>
+                            </div>
+                        </div>
+
+                        <div class="pt-1.5 border-t border-slate-800 flex justify-between items-center text-[11px] text-slate-400">
+                            <span>Возраст: <b id="card-fish-age" class="text-cyan-300">1 дн.</b></span>
+                            <span id="card-fish-status" class="text-emerald-400 font-bold">Счастлива</span>
+                        </div>
+
+                        <button id="btn-card-more" class="retro-btn w-full text-center py-1.5">ВСЕ РЫБКИ И МЕНЮ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Главное системное меню -->
+            <div id="system-modal" class="hidden absolute inset-1.5 sm:inset-5 bg-[#09131c]/98 border-2 border-[#38bdf8] rounded-xl z-30 flex flex-col justify-between p-2.5 sm:p-4 shadow-2xl overflow-hidden">
+                
+                <!-- Верхняя часть: Контент вкладок -->
+                <div class="flex-1 custom-scroll pr-1 space-y-3" id="modal-content-area">
+                    
+                    <!-- ВКЛАДКА 1: СПИСОК ВСЕХ РЫБОК С ПРОКРУТКОЙ (ДО 10 ШТУК) -->
+                    <div id="tab-fishes" class="space-y-3">
+                        <div class="flex flex-wrap justify-between items-center border-b border-slate-700 pb-2 gap-2">
+                            <div>
+                                <h3 class="pixel-font text-xs sm:text-sm text-cyan-400">МОИ РЫБКИ (<span id="roster-count">2</span>/10)</h3>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Мальки наедаются 2–3 гранулами, взрослые — 5–6 гранулами. Сытая рыбка не переедает!</p>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button id="btn-scroll-up" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-cyan-300 px-2.5 py-1 rounded text-xs font-bold" title="Прокрутить список вверх">▲ Вверх</button>
+                                <button id="btn-scroll-down" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-cyan-300 px-2.5 py-1 rounded text-xs font-bold" title="Прокрутить список вниз">▼ Вниз</button>
+                            </div>
+                        </div>
+
+                        <!-- Прокручиваемый контейнер для всех 10 рыбок -->
+                        <div id="residents-list" class="custom-scroll space-y-2 max-h-[250px] sm:max-h-[300px] pr-1 pb-2">
+                            <!-- Генерируется динамически -->
+                        </div>
+
+                        <!-- Быстрая покупка нового малька прямо из вкладки рыбок -->
+                        <div class="bg-slate-900/95 border border-slate-700 rounded-lg p-2.5 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <span class="text-2xl">🐡</span>
+                                <div>
+                                    <div class="pixel-font text-[10px] text-amber-400">НОВЫЙ МАЛЁК</div>
+                                    <div class="text-[11px] text-slate-400">Добавить маленькую рыбку в аквариум (растёт со временем)</div>
+                                </div>
+                            </div>
+                            <button id="btn-buy-fish-roster" class="retro-btn px-3 py-2 text-[9px]">+ 75₽</button>
+                        </div>
+                    </div>
+
+                    <!-- ВКЛАДКА 2: АКВАРИУМ, ВОДОРОСЛИ И УЛУЧШЕНИЯ -->
+                    <div id="tab-upgrades" class="hidden space-y-3.5">
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                            <h3 class="pixel-font text-xs sm:text-sm text-cyan-400">АКВАРИУМ И УЛУЧШЕНИЯ</h3>
+                            <span class="text-xs text-slate-400">Реальное время жизни</span>
+                        </div>
+
+                        <!-- Покупка водорослей и мальков -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div class="bg-slate-900/90 border border-slate-700 rounded-lg p-2.5 flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="text-2xl">🌿</span>
+                                    <div>
+                                        <div class="pixel-font text-[10px] text-emerald-400">ВОДОРОСЛИ</div>
+                                        <div class="text-[11px] text-slate-300">Кустов: <b id="kelp-count-label" class="text-white">18</b> | Высота: <b id="kelp-avg-cm" class="text-lime-400">2.5 см</b></div>
+                                        <div class="text-[10px] text-slate-400">Растут ~1 см в сутки. Стрижка дает +25₽</div>
+                                    </div>
+                                </div>
+                                <button id="btn-buy-kelp" class="retro-btn px-2.5 py-1.5 text-[9px]">+ 40₽</button>
+                            </div>
+
+                            <div class="bg-slate-900/90 border border-slate-700 rounded-lg p-2.5 flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="text-2xl">🐡</span>
+                                    <div>
+                                        <div class="pixel-font text-[10px] text-amber-400">НОВЫЙ МАЛЁК</div>
+                                        <div class="text-[11px] text-slate-300">Рыбок в воде: <b id="fish-count-label" class="text-white">2</b> из 10</div>
+                                        <div class="text-[10px] text-slate-400">Вырастает во взрослую рыбку за 3 дня</div>
+                                    </div>
+                                </div>
+                                <button id="btn-buy-fish" class="retro-btn px-2.5 py-1.5 text-[9px]">+ 75₽</button>
+                            </div>
+                        </div>
+
+                        <!-- Оборудование аквариума -->
+                        <div class="border-t border-slate-700 pt-2.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="pixel-font text-[10px] sm:text-xs text-yellow-400">ОБОРУДОВАНИЕ АКВАРИУМА</span>
+                                <span class="text-[11px] text-slate-400">Нажмите для прокачки</span>
+                            </div>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <button id="upg-filter" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg p-2.5 flex flex-col items-center gap-1 transition">
+                                    <span class="text-xl">🫧</span>
+                                    <span class="text-xs font-bold text-slate-200">Фильтр <span id="lvl-filter" class="text-cyan-400">Ур.1</span></span>
+                                    <span class="text-[10px] text-slate-400 text-center">Пятна на стекле растут реже</span>
+                                    <span id="cost-filter" class="pixel-font text-[9px] text-yellow-400 mt-1">50₽</span>
+                                </button>
+
+                                <button id="upg-fertilizer" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg p-2.5 flex flex-col items-center gap-1 transition">
+                                    <span class="text-xl">🧪</span>
+                                    <span class="text-xs font-bold text-slate-200">Подкормка <span id="lvl-fert" class="text-emerald-400">Ур.1</span></span>
+                                    <span class="text-[10px] text-slate-400 text-center">Ускоряет рост травы (+25%/ур)</span>
+                                    <span id="cost-fert" class="pixel-font text-[9px] text-yellow-400 mt-1">60₽</span>
+                                </button>
+
+                                <button id="upg-food" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg p-2.5 flex flex-col items-center gap-1 transition">
+                                    <span class="text-xl">🍤</span>
+                                    <span class="text-xs font-bold text-slate-200">Сытный корм <span id="lvl-food" class="text-amber-400">Ур.1</span></span>
+                                    <span class="text-[10px] text-slate-400 text-center">Питательность гранул +20%</span>
+                                    <span id="cost-food" class="pixel-font text-[9px] text-yellow-400 mt-1">80₽</span>
+                                </button>
+
+                                <button id="upg-decor" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg p-2.5 flex flex-col items-center gap-1 transition">
+                                    <span class="text-xl">🏰</span>
+                                    <span class="text-xs font-bold text-slate-200">Уют и Грот <span id="lvl-decor" class="text-purple-400">Ур.1</span></span>
+                                    <span class="text-[10px] text-slate-400 text-center">Привыкание к рукам быстрее</span>
+                                    <span id="cost-decor" class="pixel-font text-[9px] text-yellow-400 mt-1">100₽</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ВКЛАДКА 3: НАСТРОЙКИ И РЕАЛЬНОЕ ВРЕМЯ -->
+                    <div id="tab-settings" class="hidden space-y-3">
+                        <h3 class="pixel-font text-xs sm:text-sm text-cyan-400 border-b border-slate-700 pb-2">НАСТРОЙКИ И ВРЕМЯ</h3>
+                        
+                        <div class="space-y-2.5 text-xs">
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center gap-2">
+                                <div>
+                                    <div class="font-bold text-white">Режим реального времени (Офлайн-рост)</div>
+                                    <div class="text-[11px] text-slate-400">Трава растет на ~1 см в сутки, рыбки проголодаются за 12–16 часов (утро / обед / вечер). Даже при закрытой вкладке время учитывается!</div>
+                                </div>
+                                <span class="px-2 py-1 bg-emerald-500/20 border border-emerald-500 text-emerald-300 rounded text-[10px] font-bold shrink-0">РАБОТАЕТ</span>
+                            </div>
+
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center gap-2">
+                                <div>
+                                    <div class="font-bold text-amber-300">Перемотка времени (+6 часов)</div>
+                                    <div class="text-[11px] text-slate-400">Если дети хотят сразу снова покормить рыбок или вырастить траву для стрижки</div>
+                                </div>
+                                <button id="btn-skip-time" class="retro-btn shrink-0 !border-amber-400 !text-amber-300 hover:!bg-amber-400 hover:!text-slate-950">+6 ЧАСОВ ⏩</button>
+                            </div>
+
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center gap-2">
+                                <div>
+                                    <div class="font-bold text-white">Эффект ретро-экрана (полоски)</div>
+                                    <div class="text-[11px] text-slate-400">Стилизация под пиксельный экран тамагочи</div>
+                                </div>
+                                <button id="btn-toggle-crt" class="retro-btn shrink-0">ВКЛ</button>
+                            </div>
+
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center gap-2">
+                                <div>
+                                    <div class="font-bold text-rose-400">Сбросить весь прогресс</div>
+                                    <div class="text-[11px] text-slate-400">Удалить сохранение из браузера и начать заново</div>
+                                </div>
+                                <button id="btn-reset-save" class="retro-btn shrink-0 !border-rose-500 !text-rose-400 hover:!bg-rose-500 hover:!text-white">СБРОСИТЬ</button>
+                            </div>
+
+                            <!-- Подтверждение сброса -->
+                            <div id="reset-confirm-box" class="hidden bg-rose-950/90 border-2 border-rose-500 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-2">
+                                <span class="text-xs text-rose-200 font-bold">Точно удалить всех рыбок и монеты?</span>
+                                <div class="flex gap-2">
+                                    <button id="btn-confirm-reset-yes" class="retro-btn !bg-rose-600 !text-white !border-white">ДА, УДАЛИТЬ</button>
+                                    <button id="btn-confirm-reset-no" class="retro-btn">ОТМЕНА</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Нижние 4 кнопки навигации на русском языке -->
+                <div class="pt-2.5 border-t border-slate-700 grid grid-cols-4 gap-1.5 sm:gap-3 mt-2">
+                    <button id="nav-fishes" class="retro-btn py-2.5 text-center bg-cyan-500/20">🐟 РЫБКИ</button>
+                    <button id="nav-upgrades" class="retro-btn py-2.5 text-center">🌿 МАГАЗИН</button>
+                    <button id="nav-settings" class="retro-btn py-2.5 text-center">⚙️ ОПЦИИ</button>
+                    <button id="nav-close" class="retro-btn py-2.5 text-center !border-amber-400 !text-amber-300 hover:!bg-amber-400 hover:!text-slate-950">✕ ЗАКРЫТЬ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Нижняя панель инструментов (взаимодействие с аквариумом) -->
+        <div class="bg-slate-950 border-t-2 border-slate-800 px-2 sm:px-3 py-2 flex justify-around items-center z-20">
+            <button data-mode="hand" class="mode-btn tool-btn active flex-1 mx-1 py-2 rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs font-bold">
+                <span class="text-lg">👆</span>
+                <span>Инфо / Стук</span>
+            </button>
+            <button data-mode="trim" class="mode-btn tool-btn flex-1 mx-1 py-2 rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs font-bold">
+                <span class="text-lg">✂️</span>
+                <span>Стричь (+25₽)</span>
+            </button>
+            <button data-mode="feed" class="mode-btn tool-btn flex-1 mx-1 py-2 rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs font-bold">
+                <span class="text-lg">🥫</span>
+                <span>Кормить</span>
+            </button>
+            <button data-mode="clean" class="mode-btn tool-btn flex-1 mx-1 py-2 rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs font-bold">
+                <span class="text-lg">🧽</span>
+                <span>Мыть стекло</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('aqCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('canvas-wrapper');
+
+        const SAVE_KEY = 'retro_aquarium_tamagotchi_ru_v4';
+        const SECONDS_PER_DAY = 86400; // 24 часа в секундах
+
+        // Палитра цветов рыбок
+        const FISH_PALETTES = [
+            { body: '#38bdf8', fin: '#0284c7', glow: 'rgba(56, 189, 248, 0.35)' }, // Голубой
+            { body: '#4ade80', fin: '#16a34a', glow: 'rgba(74, 222, 128, 0.35)' }, // Изумрудный
+            { body: '#facc15', fin: '#ca8a04', glow: 'rgba(250, 204, 21, 0.35)' }, // Золотистый
+            { body: '#fb7185', fin: '#e11d48', glow: 'rgba(251, 113, 133, 0.35)' }, // Коралловый
+            { body: '#c084fc', fin: '#9333ea', glow: 'rgba(192, 132, 252, 0.35)' }, // Фиолетовый
+            { body: '#fb923c', fin: '#ea580c', glow: 'rgba(251, 146, 60, 0.35)' }   // Янтарный
+        ];
+
+        // Русские имена для рыбок
+        const DEFAULT_NAMES = ['МИРА', 'НЕМО', 'ЛУЧИК', 'БУЛЬКА', 'ЗЛАТА', 'КАПЛЯ', 'КОРАЛЛ', 'ШУСТРИК', 'ИСКРА', 'ТЕНЬ'];
+
+        // Глобальное состояние игры
+        let state = {
+            coins: 50,
+            isDay: true,
+            crtEnabled: true,
+            toolMode: 'hand', // 'hand' | 'trim' | 'feed' | 'clean'
+            upgrades: {
+                filter: 1,
+                fertilizer: 1,
+                food: 1,
+                decor: 1
+            },
+            fishes: [],
+            kelps: [],
+            algaeSpots: [],
+            foods: [],
+            bubbles: [],
+            ripples: [],
+            cutParticles: [],
+            floatingTexts: [],
+            selectedFishId: null,
+            lastFrameTime: performance.now(),
+            savedRealTimestamp: Date.now(),
+            algaeProgress: 0, // Накопитель появления пятна на стекле
+            isPointerDown: false,
+            pointerX: 0,
+            pointerY: 0
+        };
+
+        // Вспомогательные функции
+        const rand = (min, max) => Math.random() * (max - min) + min;
+        const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+        const dist = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);
+
+        function spawnFloatingText(text, x, y, color = '#38bdf8') {
+            state.floatingTexts.push({
+                text,
+                x: clamp(x, 60, canvas.width - 60),
+                y: clamp(y, 40, canvas.height - 40),
+                color,
+                life: 1.5
+            });
+        }
+
+        class Fish {
+            constructor(data = {}) {
+                this.id = data.id || 'fish_' + Math.random().toString(36).substr(2, 9);
+                this.name = data.name || DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
+                this.paletteIndex = data.paletteIndex !== undefined ? data.paletteIndex : Math.floor(Math.random() * FISH_PALETTES.length);
+                
+                this.x = data.x !== undefined ? data.x : rand(100, (canvas.width || 600) - 100);
+                this.y = data.y !== undefined ? data.y : rand(80, (canvas.height || 400) - 160);
+                
+                this.vx = data.vx !== undefined ? data.vx : (Math.random() < 0.5 ? -1.2 : 1.2);
+                this.vy = data.vy !== undefined ? data.vy : rand(-0.4, 0.4);
+                
+                // facingRight: true = смотрит вправо, false = смотрит влево (НИКОГДА не плывет задом!)
+                this.facingRight = data.facingRight !== undefined ? data.facingRight : (this.vx >= 0);
+                this.pitch = 0;
+
+                // Возраст в реальных секундах. Малёк становится взрослой рыбкой через 3 суток (259 200 сек)
+                this.ageSeconds = data.ageSeconds !== undefined ? data.ageSeconds : SECONDS_PER_DAY * 0.5;
+
+                // Характеристики (0 - 100)
+                this.hunger = data.hunger !== undefined ? data.hunger : 65; // Сытость
+                this.energy = data.energy !== undefined ? data.energy : 90;
+                this.calm = data.calm !== undefined ? data.calm : 90;
+                this.trust = data.trust !== undefined ? data.trust : 30;
+
+                // Черты характера (0..100)
+                this.traitSpeed = data.traitSpeed !== undefined ? data.traitSpeed : Math.floor(rand(25, 90));
+                this.traitBrave = data.traitBrave !== undefined ? data.traitBrave : Math.floor(rand(20, 85));
+                this.traitSocial = data.traitSocial !== undefined ? data.traitSocial : Math.floor(rand(30, 95));
+
+                this.targetX = this.x + (this.facingRight ? 120 : -120);
+                this.targetY = this.y;
+                this.scareTimer = 0;
+                this.tailPhase = rand(0, Math.PI * 2);
+                this.emotionIcon = null;
+                this.emotionTimer = 0;
+                this.fullNoticeCooldown = 0; // Кулдаун подсказки "Я уже сыта!"
+            }
+
+            // Проверка: Малёк (до 3 дней) или Взрослая рыбка (от 3 дней)
+            get isFry() {
+                return this.ageSeconds < SECONDS_PER_DAY * 3;
+            }
+
+            get stageTitle() {
+                return this.isFry ? 'Малёк' : 'Взрослая';
+            }
+
+            // Визуальный размер зависит от возраста (мальки маленькие 11..15px, взрослые 17..23px)
+            get size() {
+                const days = this.ageSeconds / SECONDS_PER_DAY;
+                if (days < 3) {
+                    return 11.5 + (days / 3) * 4.5;
+                }
+                return Math.min(23, 16.5 + Math.min(days - 3, 10) * 0.65);
+            }
+
+            // Сколько сытости дает 1 гранула корма:
+            // Мальку нужно всего ~2.5-3 гранулы до полного животика (36% за гранулу),
+            // Взрослой рыбке нужно ~5-6 гранул (18% за гранулу)
+            get nutritionPerPellet() {
+                const base = this.isFry ? 36 : 18;
+                return base * (1 + (state.upgrades.food - 1) * 0.2);
+            }
+
+            // Сыта ли рыбка (защита от перекорма: >= 92% больше не ест!)
+            get isFull() {
+                return this.hunger >= 92;
+            }
+
+            pickNewTarget() {
+                const marginX = 50;
+                const topMargin = 55;
+                const bottomMargin = Math.max(115, canvas.height * 0.30);
+                this.targetX = rand(marginX, Math.max(marginX + 50, canvas.width - marginX));
+                this.targetY = rand(topMargin, Math.max(topMargin + 50, canvas.height - bottomMargin));
+            }
+
+            showEmotion(icon, duration = 2.0) {
+                this.emotionIcon = icon;
+                this.emotionTimer = duration;
+            }
+
+            scareFrom(tapX, tapY) {
+                const habituationFactor = (this.trust * 0.6 + this.traitBrave * 0.4) / 100;
+
+                if (habituationFactor > 0.70) {
+                    // Привыкла к хозяину — плывет поздороваться
+                    this.targetX = clamp(tapX + rand(-35, 35), 50, canvas.width - 50);
+                    this.targetY = clamp(tapY + rand(-35, 35), 60, canvas.height - 100);
+                    this.trust = clamp(this.trust + 1.5 * state.upgrades.decor, 0, 100);
+                    this.showEmotion('❤️', 1.6);
+                } else {
+                    const angleAway = Math.atan2(this.y - tapY, this.x - tapX);
+                    const fleeSpeed = rand(5.2, 7.2) * (1.1 - habituationFactor * 0.5);
+                    this.vx = Math.cos(angleAway) * fleeSpeed;
+                    this.vy = Math.sin(angleAway) * fleeSpeed;
+                    this.targetX = clamp(this.x + this.vx * 35, 50, canvas.width - 50);
+                    this.targetY = clamp(this.y + this.vy * 35, 60, canvas.height - 100);
+                    this.scareTimer = 1.2 * (1 - habituationFactor * 0.5);
+                    this.calm = clamp(this.calm - 12 * (1 - habituationFactor), 15, 100);
+                    this.trust = clamp(this.trust + 2.0 * state.upgrades.decor, 0, 100);
+                    this.showEmotion('❗️', 1.2);
+                }
+            }
+
+            // Применение прошедшего реального времени (как онлайн, так и офлайн)
+            applyRealTimePass(elapsedSeconds) {
+                this.ageSeconds += elapsedSeconds;
+
+                // Реалистичный голод:
+                // Мальки хотят кушать чуть чаще (полный расход за ~10 часов = 36000 сек -> 0.0027% в сек)
+                // Взрослые проголодаются за ~15 часов (54000 сек -> 0.00185% в сек)
+                // Таким образом кормление утром, в обед и вечером идеально поддерживает сытость!
+                const hungerDecayPerSec = this.isFry ? (100 / (10 * 3600)) : (100 / (15 * 3600));
+                this.hunger = clamp(this.hunger - elapsedSeconds * hungerDecayPerSec, 0, 100);
+
+                // Энергия и спокойствие плавно приходят в норму
+                if (!state.isDay) {
+                    this.energy = clamp(this.energy + elapsedSeconds * 0.02, 20, 100);
+                } else {
+                    this.energy = clamp(this.energy - elapsedSeconds * 0.001, 35, 100);
+                }
+                this.calm = clamp(this.calm + elapsedSeconds * 0.05, 20, 100);
+            }
+
+            update(dt) {
+                this.applyRealTimePass(dt);
+
+                if (this.emotionTimer > 0) this.emotionTimer -= dt;
+                if (this.fullNoticeCooldown > 0) this.fullNoticeCooldown -= dt;
+                if (this.scareTimer > 0) this.scareTimer -= dt;
+
+                // Реакция на корм в воде с защитой от перекорма!
+                let chasingFood = null;
+                if (state.foods.length > 0 && this.scareTimer <= 0) {
+                    let minDist = Infinity;
+                    let nearestPellet = null;
+                    for (const f of state.foods) {
+                        const d = dist(this.x, this.y, f.x, f.y);
+                        if (d < minDist) {
+                            minDist = d;
+                            nearestPellet = f;
+                        }
+                    }
+
+                    if (this.isFull) {
+                        // Рыбка СЫТА! Не гонится за кормом, чтобы дети не перекормили её
+                        if (nearestPellet && minDist < this.size + 42 && this.fullNoticeCooldown <= 0) {
+                            this.fullNoticeCooldown = 4.0;
+                            this.showEmotion('😌', 2.0);
+                            spawnFloatingText(`${this.name}: Сыта!`, this.x, this.y - this.size - 16, '#4ade80');
+                        }
+                    } else if (nearestPellet) {
+                        chasingFood = nearestPellet;
+                        this.targetX = chasingFood.x;
+                        this.targetY = chasingFood.y;
+
+                        // Поедание гранулы
+                        if (minDist < this.size + 11) {
+                            this.hunger = clamp(this.hunger + this.nutritionPerPellet, 0, 100);
+                            this.energy = clamp(this.energy + 6, 0, 100);
+                            this.trust = clamp(this.trust + 2.5 * state.upgrades.decor, 0, 100);
+                            this.ageSeconds += 600; // Хорошее питание чуть-чуть помогает расти
+
+                            const idx = state.foods.indexOf(chasingFood);
+                            if (idx !== -1) state.foods.splice(idx, 1);
+
+                            if (this.isFull) {
+                                this.showEmotion('😊', 2.2);
+                                spawnFloatingText('Пузико полное!', this.x, this.y - this.size - 18, '#facc15');
+                            } else {
+                                this.showEmotion('😋', 1.4);
+                            }
+
+                            addCoins(5, this.x, this.y - 15);
+                            this.pickNewTarget();
+                        }
+                    }
+                }
+
+                // Свободное плавание
+                if (!chasingFood && this.scareTimer <= 0) {
+                    if (dist(this.x, this.y, this.targetX, this.targetY) < 35 || Math.random() < 0.008) {
+                        this.pickNewTarget();
+                    }
+                }
+
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                const d = Math.hypot(dx, dy) || 1;
+
+                // Мальки чуть-чуть подвижнее взрослых
+                const frySpeedBonus = this.isFry ? 1.15 : 1.0;
+                const baseSpeed = (1.05 + (this.traitSpeed / 100) * 1.05) * frySpeedBonus * (state.isDay ? 1 : 0.55);
+                const activeSpeed = chasingFood ? baseSpeed * 1.7 : (this.scareTimer > 0 ? baseSpeed * 2.9 : baseSpeed);
+
+                const desiredVx = (dx / d) * activeSpeed;
+                const desiredVy = (dy / d) * activeSpeed;
+
+                const steerFactor = this.scareTimer > 0 ? 0.12 : 0.05;
+                this.vx += (desiredVx - this.vx) * steerFactor;
+                this.vy += (desiredVy - this.vy) * steerFactor;
+
+                this.x += this.vx * (dt * 60);
+                this.y += this.vy * (dt * 60);
+
+                // Отталкивание от границ
+                const padX = this.size + 18;
+                const padTop = 55;
+                const padBottom = canvas.height - 45;
+
+                if (this.x < padX) {
+                    this.x = padX;
+                    this.vx = Math.abs(this.vx) * 0.8 + 0.5;
+                    this.targetX = rand(canvas.width * 0.4, canvas.width - 60);
+                } else if (this.x > canvas.width - padX) {
+                    this.x = canvas.width - padX;
+                    this.vx = -Math.abs(this.vx) * 0.8 - 0.5;
+                    this.targetX = rand(60, canvas.width * 0.6);
+                }
+
+                if (this.y < padTop) {
+                    this.y = padTop;
+                    this.vy = Math.abs(this.vy) * 0.6;
+                    this.targetY = rand(100, canvas.height * 0.6);
+                } else if (this.y > padBottom) {
+                    this.y = padBottom;
+                    this.vy = -Math.abs(this.vy) * 0.6;
+                    this.targetY = rand(80, canvas.height * 0.5);
+                }
+
+                // Строгий поворот головой по направлению движения (никогда не плывет задом!)
+                if (this.vx > 0.04) {
+                    this.facingRight = true;
+                } else if (this.vx < -0.04) {
+                    this.facingRight = false;
+                } else {
+                    this.facingRight = (this.targetX >= this.x);
+                }
+
+                const speedMag = Math.hypot(this.vx, this.vy);
+                const targetPitch = clamp(this.vy / (Math.abs(this.vx) + 0.8), -0.5, 0.5);
+                this.pitch += (targetPitch - this.pitch) * 0.15;
+
+                this.tailPhase += dt * (5 + speedMag * 4.5);
+            }
+
+            draw(ctx) {
+                const pal = FISH_PALETTES[this.paletteIndex % FISH_PALETTES.length];
+                const s = this.size;
+
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Пунктирный круг вокруг выбранной рыбки
+                if (state.selectedFishId === this.id) {
+                    ctx.save();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, s * 1.9, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (!this.facingRight) {
+                    ctx.scale(-1, 1);
+                }
+                ctx.rotate(this.pitch);
+
+                ctx.shadowColor = pal.glow;
+                ctx.shadowBlur = 12;
+
+                // Хвостик
+                const tailWag = Math.sin(this.tailPhase) * (s * 0.25);
+                ctx.fillStyle = pal.fin;
+                ctx.beginPath();
+                ctx.moveTo(-s * 0.75, 0);
+                ctx.lineTo(-s * 1.45, -s * 0.55 + tailWag * 0.5);
+                ctx.lineTo(-s * 1.25, tailWag * 0.2);
+                ctx.lineTo(-s * 1.45, s * 0.55 + tailWag * 0.5);
+                ctx.closePath();
+                ctx.fill();
+
+                // Плавники
+                ctx.beginPath();
+                ctx.moveTo(-s * 0.2, -s * 0.5);
+                ctx.quadraticCurveTo(-s * 0.4, -s * 0.95, -s * 0.65, -s * 0.45);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(-s * 0.1, s * 0.5);
+                ctx.quadraticCurveTo(-s * 0.3, s * 0.85, -s * 0.5, s * 0.45);
+                ctx.fill();
+
+                // Тело (чуть пузатее, если рыбка плотно поела)
+                const bellyScale = this.isFull ? 0.65 : 0.57;
+                ctx.fillStyle = pal.body;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, s * 0.95, s * bellyScale, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Блик
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+                ctx.beginPath();
+                ctx.ellipse(s * 0.1, -s * 0.18, s * 0.55, s * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Глазик (у мальков чуть крупнее относительно тела — выглядит мило)
+                const eyeR = this.isFry ? s * 0.19 : s * 0.15;
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#090d16';
+                ctx.beginPath();
+                ctx.arc(s * 0.52, -s * 0.1, eyeR, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(s * 0.56, -s * 0.14, eyeR * 0.38, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+
+                // Эмоция над рыбкой
+                if (this.emotionTimer > 0 && this.emotionIcon) {
+                    ctx.save();
+                    ctx.font = '14px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.emotionIcon, this.x, this.y - s - 10);
+                    ctx.restore();
+                }
+            }
+        }
+
+        class Kelp {
+            // 1 см высоты = 3 сегмента стебля. Максимум 6 см (18 сегментов)
+            constructor(x, segments = null) {
+                this.x = x;
+                this.maxSegments = 18;
+                this.segments = segments !== null ? segments : rand(6, 11); // ~2 - 3.6 см на старте
+                this.phase = rand(0, Math.PI * 2);
+                this.hue = rand(102, 132);
+            }
+
+            get heightCm() {
+                return (this.segments / 3).toFixed(1);
+            }
+
+            // Применение реального времени: ровно 1 см (3 сегмента) за 24 часа (86400 сек)
+            applyRealTimePass(elapsedSeconds) {
+                const baseSegsPerSec = 3.0 / SECONDS_PER_DAY; // 1 см в сутки
+                const fertMultiplier = 1 + (state.upgrades.fertilizer - 1) * 0.25;
+                const lightMultiplier = state.isDay ? 1.0 : 0.75;
+                const added = elapsedSeconds * baseSegsPerSec * fertMultiplier * lightMultiplier;
+                if (this.segments < this.maxSegments) {
+                    this.segments = Math.min(this.maxSegments, this.segments + added);
+                }
+            }
+
+            update(dt) {
+                this.phase += dt * 1.8;
+                this.applyRealTimePass(dt);
+            }
+
+            draw(ctx) {
+                const segLen = Math.max(11, canvas.height * 0.028);
+                const totalSegs = Math.floor(this.segments);
+                const frac = this.segments - totalSegs;
+
+                ctx.save();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.strokeStyle = `hsla(${this.hue}, 95%, 52%, 0.9)`;
+                ctx.shadowColor = '#4eff2b';
+                ctx.shadowBlur = 8;
+                ctx.lineWidth = 5;
+
+                ctx.beginPath();
+                let curX = this.x;
+                let curY = canvas.height;
+                ctx.moveTo(curX, curY);
+
+                for (let i = 1; i <= totalSegs; i++) {
+                    const sway = Math.sin(this.phase + i * 0.45) * (3 + i * 0.7);
+                    curX = this.x + sway;
+                    curY = canvas.height - i * segLen;
+                    ctx.lineTo(curX, curY);
+                }
+
+                if (frac > 0) {
+                    const i = totalSegs + 1;
+                    const sway = Math.sin(this.phase + i * 0.45) * (3 + i * 0.7);
+                    curX = this.x + sway * frac;
+                    curY = canvas.height - (totalSegs + frac) * segLen;
+                    ctx.lineTo(curX, curY);
+                }
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#bef264';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            tryTrim(px, py) {
+                const segLen = Math.max(11, canvas.height * 0.028);
+                const topY = canvas.height - this.segments * segLen;
+
+                if (this.segments >= 4.2 && Math.abs(px - this.x) < 22 && py >= topY - 12 && py <= canvas.height - segLen * 2.5) {
+                    const cutSegIndex = clamp(Math.floor((canvas.height - py) / segLen), 3, Math.floor(this.segments) - 1);
+                    const removed = this.segments - cutSegIndex;
+                    if (removed >= 0.8) {
+                        this.segments = cutSegIndex;
+                        for (let i = 0; i < 4; i++) {
+                            state.cutParticles.push({
+                                x: this.x + rand(-8, 8),
+                                y: py + rand(-10, 10),
+                                vx: rand(-0.8, 0.8),
+                                vy: rand(-1.5, -0.3),
+                                life: 1.0
+                            });
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        // Расчет появления пятен на стекле за реальные часы (около 3 пятен в сутки на 1 ур. фильтра)
+        function applyAlgaeRealTimePass(elapsedSeconds) {
+            const spotsPerDay = 3.2 / (1 + (state.upgrades.filter - 1) * 0.35);
+            const spotsPerSec = spotsPerDay / SECONDS_PER_DAY;
+            state.algaeProgress += elapsedSeconds * spotsPerSec;
+
+            while (state.algaeProgress >= 1.0 && state.algaeSpots.length < 12) {
+                state.algaeProgress -= 1.0;
+                state.algaeSpots.push({
+                    x: rand(60, (canvas.width || 600) - 60),
+                    y: rand(70, (canvas.height || 400) - 120),
+                    radius: rand(26, 44),
+                    opacity: rand(0.38, 0.62)
+                });
+            }
+            if (state.algaeSpots.length >= 12) {
+                state.algaeProgress = 0;
+            }
+        }
+
+        // Симуляция прошедшего времени (для офлайна и кнопки "+6 часов")
+        function simulateTimeJump(seconds) {
+            if (seconds <= 0) return;
+            const cappedSeconds = Math.min(seconds, SECONDS_PER_DAY * 7); // Максимум 7 суток за раз
+            state.fishes.forEach(f => f.applyRealTimePass(cappedSeconds));
+            state.kelps.forEach(k => k.applyRealTimePass(cappedSeconds));
+            applyAlgaeRealTimePass(cappedSeconds);
+            updateCleanlinessUI();
+            updateKelpHud();
+            if (state.selectedFishId) updateFishCardUI();
+            if (!document.getElementById('system-modal').classList.contains('hidden')) {
+                renderResidentsList();
+                updateShopButtons();
+            }
+        }
+
+        function updateKelpHud() {
+            if (state.kelps.length === 0) return;
+            const avgSegs = state.kelps.reduce((acc, k) => acc + k.segments, 0) / state.kelps.length;
+            const avgCm = (avgSegs / 3).toFixed(1);
+            document.getElementById('kelp-cm-hud').textContent = `${avgCm} см`;
+            const shopCmEl = document.getElementById('kelp-avg-cm');
+            if (shopCmEl) shopCmEl.textContent = `${avgCm} см`;
+        }
+
+        function addCoins(amount, x = null, y = null) {
+            state.coins += amount;
+            document.getElementById('coin-count').textContent = state.coins;
+            updateShopButtons();
+
+            if (x !== null && y !== null) {
+                const toast = document.createElement('div');
+                toast.className = 'coin-toast';
+                toast.style.left = `${clamp(x, 50, wrapper.clientWidth - 50)}px`;
+                toast.style.top = `${clamp(y, 40, wrapper.clientHeight - 40)}px`;
+                toast.innerHTML = `<span class="w-3.5 h-3.5 rounded-full bg-yellow-400 text-slate-950 font-black flex items-center justify-center text-[9px]">₽</span><span>+${amount}</span>`;
+                wrapper.appendChild(toast);
+                setTimeout(() => toast.remove(), 1300);
+            }
+            saveGame();
+        }
+
+        let saveIndicatorTimeout = null;
+        function saveGame(showBadge = false) {
+            try {
+                state.savedRealTimestamp = Date.now();
+                const payload = {
+                    coins: state.coins,
+                    isDay: state.isDay,
+                    crtEnabled: state.crtEnabled,
+                    upgrades: state.upgrades,
+                    savedRealTimestamp: state.savedRealTimestamp,
+                    algaeProgress: state.algaeProgress,
+                    fishes: state.fishes.map(f => ({
+                        id: f.id,
+                        name: f.name,
+                        paletteIndex: f.paletteIndex,
+                        x: f.x,
+                        y: f.y,
+                        vx: f.vx,
+                        vy: f.vy,
+                        facingRight: f.facingRight,
+                        ageSeconds: f.ageSeconds,
+                        hunger: f.hunger,
+                        energy: f.energy,
+                        calm: f.calm,
+                        trust: f.trust,
+                        traitSpeed: f.traitSpeed,
+                        traitBrave: f.traitBrave,
+                        traitSocial: f.traitSocial
+                    })),
+                    kelps: state.kelps.map(k => ({
+                        xRatio: canvas.width ? k.x / canvas.width : 0.5,
+                        segments: k.segments
+                    })),
+                    algaeSpots: state.algaeSpots.map(a => ({
+                        xRatio: canvas.width ? a.x / canvas.width : 0.5,
+                        yRatio: canvas.height ? a.y / canvas.height : 0.5,
+                        radius: a.radius,
+                        opacity: a.opacity
+                    }))
+                };
+                localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+
+                if (showBadge) {
+                    const badge = document.getElementById('save-indicator');
+                    badge.style.opacity = '1';
+                    clearTimeout(saveIndicatorTimeout);
+                    saveIndicatorTimeout = setTimeout(() => { badge.style.opacity = '0'; }, 1200);
+                }
+            } catch (err) {
+                console.warn('Ошибка сохранения в localStorage:', err);
+            }
+        }
+
+        function loadGame() {
+            try {
+                const raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem('retro_aquarium_tamagotchi_v3');
+                if (!raw) return false;
+                const data = JSON.parse(raw);
+
+                state.coins = typeof data.coins === 'number' ? data.coins : 50;
+                state.isDay = data.isDay !== undefined ? data.isDay : true;
+                state.crtEnabled = data.crtEnabled !== undefined ? data.crtEnabled : true;
+                state.algaeProgress = typeof data.algaeProgress === 'number' ? data.algaeProgress : 0;
+
+                if (data.upgrades) {
+                    state.upgrades = { ...state.upgrades, ...data.upgrades };
+                }
+
+                if (Array.isArray(data.fishes) && data.fishes.length > 0) {
+                    state.fishes = data.fishes.map(fd => {
+                        // Конвертация старых английских имен в русские при миграции
+                        if (fd.name === 'MIRA') fd.name = 'МИРА';
+                        if (fd.name === 'LUMA') fd.name = 'ЛУЧИК';
+                        return new Fish(fd);
+                    });
+                }
+
+                if (Array.isArray(data.kelps) && data.kelps.length > 0) {
+                    state.kelps = data.kelps.map(kd => new Kelp((kd.xRatio || 0.5) * canvas.width, kd.segments));
+                }
+
+                if (Array.isArray(data.algaeSpots)) {
+                    state.algaeSpots = data.algaeSpots.map(ad => ({
+                        x: (ad.xRatio || 0.5) * canvas.width,
+                        y: (ad.yRatio || 0.5) * canvas.height,
+                        radius: ad.radius || 28,
+                        opacity: ad.opacity || 0.5
+                    }));
+                }
+
+                // Вычисляем, сколько реальных секунд прошло с момента закрытия игры
+                if (typeof data.savedRealTimestamp === 'number') {
+                    const offlineSeconds = Math.max(0, (Date.now() - data.savedRealTimestamp) / 1000);
+                    if (offlineSeconds > 5) {
+                        simulateTimeJump(offlineSeconds);
+                    }
+                }
+
+                return true;
+            } catch (err) {
+                console.warn('Не удалось загрузить сохранение:', err);
+                return false;
+            }
+        }
+
+        function resizeCanvas() {
+            const prevW = canvas.width || wrapper.clientWidth;
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+
+            if (state.kelps.length > 0 && prevW > 0) {
+                state.kelps.forEach(k => {
+                    k.x = (k.x / prevW) * canvas.width;
+                });
+            }
+        }
+
+        function setupDefaultWorld() {
+            // На старте даем 1 взрослую рыбку (МИРА) и 1 маленького малька (БУЛЬКА), чтобы сразу была видна разница!
+            state.fishes = [
+                new Fish({
+                    name: 'МИРА',
+                    paletteIndex: 0,
+                    x: canvas.width * 0.62,
+                    y: canvas.height * 0.38,
+                    ageSeconds: SECONDS_PER_DAY * 4, // Взрослая (4 дня)
+                    hunger: 55,
+                    trust: 45
+                }),
+                new Fish({
+                    name: 'БУЛЬКА',
+                    paletteIndex: 2,
+                    x: canvas.width * 0.32,
+                    y: canvas.height * 0.45,
+                    ageSeconds: SECONDS_PER_DAY * 0.4, // Малёк (1 день)
+                    hunger: 50,
+                    trust: 35
+                })
+            ];
+
+            state.kelps = [];
+            const kelpCount = 18;
+            for (let i = 0; i < kelpCount; i++) {
+                const x = (canvas.width / (kelpCount + 1)) * (i + 1) + rand(-10, 10);
+                state.kelps.push(new Kelp(x, rand(6.5, 10.5))); // ~2.2 - 3.5 см
+            }
+
+            state.algaeSpots = [
+                { x: canvas.width * 0.25, y: canvas.height * 0.32, radius: 34, opacity: 0.45 }
+            ];
+            state.algaeProgress = 0;
+        }
+
+        let trimComboCounter = 0;
+
+        function getPointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function onPointerDown(e) {
+            if (e.target !== canvas) return;
+            e.preventDefault();
+            const pos = getPointerPos(e);
+            state.isPointerDown = true;
+            state.pointerX = pos.x;
+            state.pointerY = pos.y;
+            trimComboCounter = 0;
+
+            if (state.toolMode === 'hand') {
+                for (let i = state.fishes.length - 1; i >= 0; i--) {
+                    const f = state.fishes[i];
+                    if (dist(pos.x, pos.y, f.x, f.y) <= f.size * 2.0) {
+                        openFishCard(f.id);
+                        return;
+                    }
+                }
+
+                if (state.selectedFishId) {
+                    closeFishCard();
+                    return;
+                }
+
+                // Стук по стеклу
+                state.ripples.push({ x: pos.x, y: pos.y, r: 4, maxR: 75, alpha: 0.9 });
+                state.fishes.forEach(f => {
+                    if (dist(pos.x, pos.y, f.x, f.y) < 260) {
+                        f.scareFrom(pos.x, pos.y);
+                    }
+                });
+                saveGame();
+            } 
+            else if (state.toolMode === 'feed') {
+                // Дети могут сыпать корм в любое время; голодные рыбки съедят свою норму, а сытые откажутся!
+                for (let i = 0; i < 2; i++) {
+                    if (state.foods.length < 16) {
+                        state.foods.push({
+                            x: clamp(pos.x + rand(-14, 14), 25, canvas.width - 25),
+                            y: clamp(pos.y + rand(-8, 8), 20, canvas.height - 60),
+                            vy: rand(20, 30),
+                            bottomTimer: 0 // Растворится на дне через несколько секунд, если все рыбки сыты
+                        });
+                    }
+                }
+            } 
+            else if (state.toolMode === 'trim') {
+                performTrimAt(pos.x, pos.y);
+            } 
+            else if (state.toolMode === 'clean') {
+                performCleanAt(pos.x, pos.y);
+            }
+        }
+
+        function onPointerMove(e) {
+            if (!state.isPointerDown) return;
+            e.preventDefault();
+            const pos = getPointerPos(e);
+            state.pointerX = pos.x;
+            state.pointerY = pos.y;
+
+            if (state.toolMode === 'trim' || (state.toolMode === 'hand' && pos.y > canvas.height * 0.55)) {
+                performTrimAt(pos.x, pos.y);
+            }
+
+            if (state.toolMode === 'clean') {
+                performCleanAt(pos.x, pos.y);
+            }
+        }
+
+        function onPointerUp() {
+            state.isPointerDown = false;
+        }
+
+        function performTrimAt(x, y) {
+            let cutAny = false;
+            for (const k of state.kelps) {
+                if (k.tryTrim(x, y)) {
+                    cutAny = true;
+                }
+            }
+            if (cutAny) {
+                trimComboCounter++;
+                updateKelpHud();
+                if (trimComboCounter % 2 === 1) {
+                    addCoins(25, x, y - 30);
+                }
+            }
+        }
+
+        function performCleanAt(x, y) {
+            for (let i = state.algaeSpots.length - 1; i >= 0; i--) {
+                const spot = state.algaeSpots[i];
+                if (dist(x, y, spot.x, spot.y) < spot.radius + 25) {
+                    spot.opacity -= 0.08;
+                    state.bubbles.push({
+                        x: x + rand(-10, 10),
+                        y: y + rand(-10, 10),
+                        r: rand(2, 4),
+                        vy: rand(40, 70),
+                        phase: rand(0, 6)
+                    });
+                    if (spot.opacity <= 0.05) {
+                        state.algaeSpots.splice(i, 1);
+                        addCoins(15, spot.x, spot.y);
+                        updateCleanlinessUI();
+                    }
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+        window.addEventListener('touchmove', onPointerMove, { passive: false });
+        window.addEventListener('touchend', onPointerUp);
+
+        const fishCard = document.getElementById('fish-card');
+        const systemModal = document.getElementById('system-modal');
+
+        function renderSegBar(containerId, value, activeColor) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const totalSegs = 6;
+            const activeSegs = Math.round((clamp(value, 0, 100) / 100) * totalSegs);
+            container.innerHTML = '';
+            for (let i = 0; i < totalSegs; i++) {
+                const div = document.createElement('div');
+                div.className = 'seg-block';
+                if (i < activeSegs) {
+                    div.style.backgroundColor = activeColor;
+                    div.style.boxShadow = `0 0 5px ${activeColor}`;
+                }
+                container.appendChild(div);
+            }
+        }
+
+        function openFishCard(fishId) {
+            state.selectedFishId = fishId;
+            fishCard.classList.remove('hidden');
+            updateFishCardUI();
+        }
+
+        function closeFishCard() {
+            state.selectedFishId = null;
+            fishCard.classList.add('hidden');
+        }
+
+        function cycleSelectedFish(dir) {
+            if (state.fishes.length === 0) return;
+            const idx = state.fishes.findIndex(f => f.id === state.selectedFishId);
+            const nextIdx = (idx + dir + state.fishes.length) % state.fishes.length;
+            state.selectedFishId = state.fishes[nextIdx].id;
+            updateFishCardUI();
+        }
+
+        document.getElementById('btn-prev-fish').addEventListener('click', () => cycleSelectedFish(-1));
+        document.getElementById('btn-next-fish').addEventListener('click', () => cycleSelectedFish(1));
+
+        function updateFishCardUI() {
+            if (!state.selectedFishId) return;
+            const idx = state.fishes.findIndex(item => item.id === state.selectedFishId);
+            if (idx === -1) {
+                closeFishCard();
+                return;
+            }
+            const f = state.fishes[idx];
+
+            document.getElementById('card-fish-name').textContent = f.name;
+            document.getElementById('card-fish-index').textContent = `${idx + 1}/${state.fishes.length}`;
+            document.getElementById('card-fish-icon').textContent = f.isFry ? '🐡' : '🐟';
+
+            const stageEl = document.getElementById('card-fish-stage');
+            stageEl.textContent = f.isFry ? 'Малёк (маленький животик)' : 'Взрослая рыбка';
+            stageEl.className = f.isFry ? 'text-amber-300 ml-1' : 'text-cyan-300 ml-1';
+
+            const stomachEl = document.getElementById('card-fish-stomach');
+            const hRound = Math.round(f.hunger);
+            if (f.isFull) {
+                stomachEl.textContent = `Сыта на ${hRound}% (не переедает)`;
+                stomachEl.className = 'text-emerald-400 ml-1';
+            } else if (hRound < 30) {
+                stomachEl.textContent = `Голодна (${hRound}%) — пора кормить!`;
+                stomachEl.className = 'text-rose-400 ml-1';
+            } else {
+                const pelletsLeft = Math.max(1, Math.ceil((95 - f.hunger) / f.nutritionPerPellet));
+                stomachEl.textContent = `${hRound}% (съест ещё ~${pelletsLeft} гран.)`;
+                stomachEl.className = 'text-yellow-300 ml-1';
+            }
+
+            renderSegBar('bar-hunger', f.hunger, '#4ade80');
+            renderSegBar('bar-energy', f.energy, '#facc15');
+            renderSegBar('bar-calm', f.calm, '#38bdf8');
+            renderSegBar('bar-trust', f.trust, '#fb7185');
+
+            document.getElementById('trait-speed').style.left = `${f.traitSpeed}%`;
+            document.getElementById('trait-brave').style.left = `${f.traitBrave}%`;
+            document.getElementById('trait-social').style.left = `${f.traitSocial}%`;
+
+            const days = Math.max(1, Math.floor(f.ageSeconds / SECONDS_PER_DAY) + 1);
+            document.getElementById('card-fish-age').textContent = `${days} дн.`;
+
+            const statusEl = document.getElementById('card-fish-status');
+            if (f.hunger < 25) {
+                statusEl.textContent = 'Хочет кушать!';
+                statusEl.className = 'text-rose-400 font-bold';
+            } else if (f.isFull) {
+                statusEl.textContent = 'Сыта и довольна';
+                statusEl.className = 'text-emerald-400 font-bold';
+            } else if (f.trust > 75) {
+                statusEl.textContent = 'Ручная любимица ❤️';
+                statusEl.className = 'text-pink-400 font-bold';
+            } else {
+                statusEl.textContent = 'Хороший аппетит';
+                statusEl.className = 'text-cyan-300 font-bold';
+            }
+        }
+
+        // Переименование рыбки
+        document.getElementById('btn-rename-fish').addEventListener('click', () => {
+            const f = state.fishes.find(item => item.id === state.selectedFishId);
+            if (!f) return;
+            const currentIdx = DEFAULT_NAMES.indexOf(f.name);
+            f.name = DEFAULT_NAMES[(currentIdx + 1) % DEFAULT_NAMES.length];
+            updateFishCardUI();
+            saveGame(true);
+        });
+
+        document.getElementById('btn-close-card').addEventListener('click', closeFishCard);
+        document.getElementById('btn-card-more').addEventListener('click', () => {
+            closeFishCard();
+            openSystemModal('fishes');
+        });
+
+        function openSystemModal(tab = 'fishes') {
+            systemModal.classList.remove('hidden');
+            switchModalTab(tab);
+            renderResidentsList();
+            updateShopButtons();
+        }
+
+        function closeSystemModal() {
+            systemModal.classList.add('hidden');
+            document.getElementById('reset-confirm-box').classList.add('hidden');
+        }
+
+        function switchModalTab(tab) {
+            const tabs = {
+                fishes: document.getElementById('tab-fishes'),
+                upgrades: document.getElementById('tab-upgrades'),
+                settings: document.getElementById('tab-settings')
+            };
+            const navs = {
+                fishes: document.getElementById('nav-fishes'),
+                upgrades: document.getElementById('nav-upgrades'),
+                settings: document.getElementById('nav-settings')
+            };
+
+            Object.keys(tabs).forEach(k => {
+                if (k === tab) {
+                    tabs[k].classList.remove('hidden');
+                    navs[k].classList.add('bg-cyan-500/20');
+                } else {
+                    tabs[k].classList.add('hidden');
+                    navs[k].classList.remove('bg-cyan-500/20');
+                }
+            });
+        }
+
+        // Кнопки прокрутки списка рыбок вверх/вниз для удобства на любых экранах
+        const residentsListEl = document.getElementById('residents-list');
+        document.getElementById('btn-scroll-up').addEventListener('click', () => {
+            residentsListEl.scrollBy({ top: -110, behavior: 'smooth' });
+        });
+        document.getElementById('btn-scroll-down').addEventListener('click', () => {
+            residentsListEl.scrollBy({ top: 110, behavior: 'smooth' });
+        });
+
+        function renderResidentsList() {
+            residentsListEl.innerHTML = '';
+
+            state.fishes.forEach((f, idx) => {
+                const pal = FISH_PALETTES[f.paletteIndex % FISH_PALETTES.length];
+                const hRound = Math.round(f.hunger);
+                const stageBadge = f.isFry
+                    ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px]">Малёк</span>`
+                    : `<span class="px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-[10px]">Взрослая</span>`;
+
+                const satietyBadge = f.isFull
+                    ? `<span class="text-emerald-400 font-bold">Сыта (${hRound}%)</span>`
+                    : (hRound < 30 ? `<span class="text-rose-400 font-bold">Голодна (${hRound}%)</span>` : `<span class="text-yellow-300">Сытость ${hRound}%</span>`);
+
+                const row = document.createElement('div');
+                row.className = 'bg-slate-900/95 border border-slate-700/90 hover:border-cyan-500/60 rounded-lg p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition';
+                row.innerHTML = `
+                    <div class="flex items-center gap-2.5 min-w-[180px]">
+                        <span class="text-slate-500 font-bold text-[11px] w-4">${idx + 1}.</span>
+                        <span class="w-3.5 h-3.5 rounded-full shrink-0" style="background:${pal.body}; box-shadow: 0 0 6px ${pal.body}"></span>
+                        <span class="pixel-font text-[10px] text-white">${f.name}</span>
+                        ${stageBadge}
+                    </div>
+                    <div class="flex items-center gap-3 text-[11px] ml-auto">
+                        <div>🍔 ${satietyBadge}</div>
+                        <div class="text-pink-300 hidden sm:block">❤️ ${Math.round(f.trust)}%</div>
+                        <button class="retro-btn !py-1.5 !px-2.5 !text-[9px]">КАРТОЧКА</button>
+                    </div>
+                `;
+                row.querySelector('button').addEventListener('click', () => {
+                    closeSystemModal();
+                    openFishCard(f.id);
+                });
+                residentsListEl.appendChild(row);
+            });
+
+            document.getElementById('roster-count').textContent = state.fishes.length;
+            document.getElementById('hud-fish-counter').textContent = `${state.fishes.length}/10`;
+            document.getElementById('kelp-count-label').textContent = state.kelps.length;
+            document.getElementById('fish-count-label').textContent = state.fishes.length;
+            updateKelpHud();
+        }
+
+        function updateShopButtons() {
+            document.getElementById('coin-count').textContent = state.coins;
+            document.getElementById('hud-fish-counter').textContent = `${state.fishes.length}/10`;
+
+            const btnKelp = document.getElementById('btn-buy-kelp');
+            btnKelp.disabled = state.coins < 40 || state.kelps.length >= 28;
+            btnKelp.textContent = state.kelps.length >= 28 ? 'МАКС' : '+ 40₽';
+
+            const canBuyFish = state.coins >= 75 && state.fishes.length < 10;
+            const fishBtnText = state.fishes.length >= 10 ? 'МАКС (10)' : '+ 75₽';
+
+            ['btn-buy-fish', 'btn-buy-fish-roster'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.disabled = !canBuyFish;
+                    el.textContent = fishBtnText;
+                }
+            });
+
+            const costs = {
+                filter: state.upgrades.filter * 50,
+                fertilizer: state.upgrades.fertilizer * 60,
+                food: state.upgrades.food * 80,
+                decor: state.upgrades.decor * 100
+            };
+
+            document.getElementById('lvl-filter').textContent = `Ур.${state.upgrades.filter}`;
+            document.getElementById('cost-filter').textContent = state.upgrades.filter >= 5 ? 'МАКС' : `${costs.filter}₽`;
+
+            document.getElementById('lvl-fert').textContent = `Ур.${state.upgrades.fertilizer}`;
+            document.getElementById('cost-fert').textContent = state.upgrades.fertilizer >= 5 ? 'МАКС' : `${costs.fertilizer}₽`;
+
+            document.getElementById('lvl-food').textContent = `Ур.${state.upgrades.food}`;
+            document.getElementById('cost-food').textContent = state.upgrades.food >= 5 ? 'МАКС' : `${costs.food}₽`;
+
+            document.getElementById('lvl-decor').textContent = `Ур.${state.upgrades.decor}`;
+            document.getElementById('cost-decor').textContent = state.upgrades.decor >= 5 ? 'МАКС' : `${costs.decor}₽`;
+        }
+
+        function updateCleanlinessUI() {
+            const cleanVal = clamp(100 - state.algaeSpots.length * 8, 0, 100);
+            const el = document.getElementById('clean-percent');
+            el.textContent = `${cleanVal}%`;
+            el.className = cleanVal > 70 ? 'font-bold text-emerald-400' : (cleanVal > 40 ? 'font-bold text-amber-400' : 'font-bold text-rose-400');
+        }
+
+        const modeHints = {
+            hand: '👆 Нажмите на рыбку для инфо, по воде — постучать, по траве — подстричь',
+            trim: '✂️ Проведите по водорослям, чтобы подстричь их (+25₽)',
+            feed: '🥫 Нажимайте по воде, чтобы покормить (сытая рыбка переедать не станет!)',
+            clean: '🧽 Протирайте зеленые пятна налета на стекле аквариума (+15₽)'
+        };
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                state.toolMode = btn.getAttribute('data-mode');
+                document.getElementById('mode-hint').textContent = modeHints[state.toolMode];
+            });
+        });
+
+        // День / Ночь
+        const btnLight = document.getElementById('btn-light');
+        function applyLightUI() {
+            btnLight.textContent = state.isDay ? '☀️' : '🌙';
+        }
+        btnLight.addEventListener('click', () => {
+            state.isDay = !state.isDay;
+            applyLightUI();
+            saveGame(true);
+        });
+
+        // Навигация системного окна
+        document.getElementById('btn-open-fishes').addEventListener('click', () => openSystemModal('fishes'));
+        document.getElementById('btn-open-hub').addEventListener('click', () => openSystemModal('fishes'));
+        document.getElementById('nav-fishes').addEventListener('click', () => {
+            switchModalTab('fishes');
+            renderResidentsList();
+        });
+        document.getElementById('nav-upgrades').addEventListener('click', () => switchModalTab('upgrades'));
+        document.getElementById('nav-settings').addEventListener('click', () => switchModalTab('settings'));
+        document.getElementById('nav-close').addEventListener('click', closeSystemModal);
+
+        // Покупки
+        document.getElementById('btn-buy-kelp').addEventListener('click', () => {
+            if (state.coins >= 40 && state.kelps.length < 28) {
+                state.coins -= 40;
+                state.kelps.push(new Kelp(rand(30, canvas.width - 30), 7));
+                renderResidentsList();
+                updateShopButtons();
+                saveGame(true);
+            }
+        });
+
+        function buyNewFry() {
+            if (state.coins >= 75 && state.fishes.length < 10) {
+                state.coins -= 75;
+                const usedNames = state.fishes.map(f => f.name);
+                const freeNames = DEFAULT_NAMES.filter(n => !usedNames.includes(n));
+                const newName = freeNames.length > 0 ? freeNames[0] : `МАЛЁК-${state.fishes.length + 1}`;
+                state.fishes.push(new Fish({
+                    name: newName,
+                    ageSeconds: 0, // Новорожденный малёк
+                    hunger: 50,
+                    y: canvas.height * 0.28
+                }));
+                renderResidentsList();
+                updateShopButtons();
+                saveGame(true);
+                // Сразу прокручиваем список вниз к новому мальку
+                setTimeout(() => {
+                    residentsListEl.scrollTo({ top: residentsListEl.scrollHeight, behavior: 'smooth' });
+                }, 60);
+            }
+        }
+
+        document.getElementById('btn-buy-fish').addEventListener('click', buyNewFry);
+        document.getElementById('btn-buy-fish-roster').addEventListener('click', buyNewFry);
+
+        function bindUpgrade(btnId, key, baseCost) {
+            document.getElementById(btnId).addEventListener('click', () => {
+                const lvl = state.upgrades[key];
+                const cost = lvl * baseCost;
+                if (lvl < 5 && state.coins >= cost) {
+                    state.coins -= cost;
+                    state.upgrades[key]++;
+                    updateShopButtons();
+                    saveGame(true);
+                }
+            });
+        }
+        bindUpgrade('upg-filter', 'filter', 50);
+        bindUpgrade('upg-fertilizer', 'fertilizer', 60);
+        bindUpgrade('upg-food', 'food', 80);
+        bindUpgrade('upg-decor', 'decor', 100);
+
+        // Кнопка перемотки времени (+6 часов) в настройках
+        document.getElementById('btn-skip-time').addEventListener('click', () => {
+            simulateTimeJump(6 * 3600);
+            saveGame(true);
+            spawnFloatingText('⏩ Прошло 6 часов!', canvas.width / 2, canvas.height / 2, '#facc15');
+        });
+
+        // Переключение CRT полос
+        const btnToggleCrt = document.getElementById('btn-toggle-crt');
+        btnToggleCrt.addEventListener('click', () => {
+            state.crtEnabled = !state.crtEnabled;
+            document.querySelector('.crt-overlay').style.display = state.crtEnabled ? 'block' : 'none';
+            btnToggleCrt.textContent = state.crtEnabled ? 'ВКЛ' : 'ВЫКЛ';
+            saveGame(true);
+        });
+
+        // Сброс сохранения
+        document.getElementById('btn-reset-save').addEventListener('click', () => {
+            document.getElementById('reset-confirm-box').classList.remove('hidden');
+        });
+        document.getElementById('btn-confirm-reset-no').addEventListener('click', () => {
+            document.getElementById('reset-confirm-box').classList.add('hidden');
+        });
+        document.getElementById('btn-confirm-reset-yes').addEventListener('click', () => {
+            localStorage.removeItem(SAVE_KEY);
+            localStorage.removeItem('retro_aquarium_tamagotchi_v3');
+            state.coins = 50;
+            state.isDay = true;
+            state.upgrades = { filter: 1, fertilizer: 1, food: 1, decor: 1 };
+            setupDefaultWorld();
+            closeSystemModal();
+            updateShopButtons();
+            updateCleanlinessUI();
+            updateKelpHud();
+            applyLightUI();
+            saveGame(true);
+        });
+
+        let cardRefreshTimer = 0;
+
+        function gameLoop(now) {
+            const dt = clamp((now - state.lastFrameTime) / 1000, 0.001, 0.1);
+            state.lastFrameTime = now;
+
+            // 1. Фон аквариума
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            if (state.isDay) {
+                bgGrad.addColorStop(0, '#0f3c4c');
+                bgGrad.addColorStop(0.55, '#07222b');
+                bgGrad.addColorStop(1, '#031014');
+            } else {
+                bgGrad.addColorStop(0, '#05131d');
+                bgGrad.addColorStop(0.6, '#03090f');
+                bgGrad.addColorStop(1, '#010306');
+            }
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (state.isDay) {
+                ctx.save();
+                const rayGrad = ctx.createRadialGradient(canvas.width * 0.5, -30, 10, canvas.width * 0.5, 0, canvas.height * 0.75);
+                rayGrad.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
+                rayGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+                ctx.fillStyle = rayGrad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+
+            // 2. Мелкие фоновые пузырьки
+            if (state.bubbles.length < 22 && Math.random() < 0.15) {
+                state.bubbles.push({
+                    x: rand(20, canvas.width - 20),
+                    y: canvas.height + 10,
+                    r: rand(1.2, 3.2),
+                    vy: rand(18, 42),
+                    phase: rand(0, Math.PI * 2)
+                });
+            }
+            ctx.fillStyle = 'rgba(186, 230, 253, 0.35)';
+            for (let i = state.bubbles.length - 1; i >= 0; i--) {
+                const b = state.bubbles[i];
+                b.y -= b.vy * dt;
+                b.phase += dt * 3;
+                const bx = b.x + Math.sin(b.phase) * 3;
+                ctx.beginPath();
+                ctx.arc(bx, b.y, b.r, 0, Math.PI * 2);
+                ctx.fill();
+                if (b.y < -10) state.bubbles.splice(i, 1);
+            }
+
+            // 3. Отрисовка и медленный рост водорослей (~1 см в сутки)
+            for (const k of state.kelps) {
+                k.update(dt);
+                k.draw(ctx);
+            }
+
+            // 4. Срезанные кусочки водорослей
+            for (let i = state.cutParticles.length - 1; i >= 0; i--) {
+                const p = state.cutParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05;
+                p.life -= dt * 1.4;
+                if (p.life <= 0) {
+                    state.cutParticles.splice(i, 1);
+                    continue;
+                }
+                ctx.fillStyle = `rgba(78, 255, 43, ${p.life})`;
+                ctx.fillRect(p.x, p.y, 4, 7);
+            }
+
+            // 5. Корм (если все рыбки сыты, гранула плавно оседает на дно и растворяется без вреда)
+            for (let i = state.foods.length - 1; i >= 0; i--) {
+                const f = state.foods[i];
+                if (f.y < canvas.height - 16) {
+                    f.y += f.vy * dt;
+                } else {
+                    f.bottomTimer = (f.bottomTimer || 0) + dt;
+                }
+
+                const alpha = f.bottomTimer ? Math.max(0, 1 - f.bottomTimer / 5) : 1;
+                ctx.fillStyle = `rgba(254, 240, 138, ${alpha})`;
+                ctx.shadowColor = '#facc15';
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, 3.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                if (f.bottomTimer > 5) {
+                    state.foods.splice(i, 1);
+                }
+            }
+
+            // 6. Обновление и отрисовка рыбок
+            for (const fish of state.fishes) {
+                fish.update(dt);
+                fish.draw(ctx);
+            }
+
+            // 7. Всплывающие надписи ("Сыта!", "Пузико полное!")
+            for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+                const ft = state.floatingTexts[i];
+                ft.y -= dt * 22;
+                ft.life -= dt;
+                if (ft.life <= 0) {
+                    state.floatingTexts.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.font = 'bold 12px Rubik, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = ft.color;
+                ctx.globalAlpha = Math.min(1, ft.life);
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 4;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            }
+
+            // 8. Круги на воде от стука
+            for (let i = state.ripples.length - 1; i >= 0; i--) {
+                const rp = state.ripples[i];
+                rp.r += dt * 110;
+                rp.alpha -= dt * 1.3;
+                if (rp.alpha <= 0) {
+                    state.ripples.splice(i, 1);
+                    continue;
+                }
+                ctx.strokeStyle = `rgba(125, 211, 252, ${rp.alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // 9. Реалистично медленное появление пятен на стекле
+            applyAlgaeRealTimePass(dt);
+            for (const spot of state.algaeSpots) {
+                const g = ctx.createRadialGradient(spot.x, spot.y, 2, spot.x, spot.y, spot.radius);
+                g.addColorStop(0, `rgba(74, 222, 128, ${spot.opacity})`);
+                g.addColorStop(0.6, `rgba(34, 197, 94, ${spot.opacity * 0.5})`);
+                g.addColorStop(1, 'rgba(34, 197, 94, 0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(spot.x, spot.y, spot.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 10. След от инструмента
+            if (state.isPointerDown && (state.toolMode === 'trim' || state.toolMode === 'clean')) {
+                ctx.strokeStyle = state.toolMode === 'trim' ? 'rgba(78, 255, 43, 0.7)' : 'rgba(56, 189, 248, 0.7)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(state.pointerX, state.pointerY, 14, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            cardRefreshTimer += dt;
+            if (cardRefreshTimer > 0.4) {
+                cardRefreshTimer = 0;
+                if (state.selectedFishId) updateFishCardUI();
+                updateKelpHud();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = function () {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            const loaded = loadGame();
+            if (!loaded) {
+                setupDefaultWorld();
+            }
+
+            applyLightUI();
+            updateShopButtons();
+            updateCleanlinessUI();
+            updateKelpHud();
+            document.querySelector('.crt-overlay').style.display = state.crtEnabled ? 'block' : 'none';
+            btnToggleCrt.textContent = state.crtEnabled ? 'ВКЛ' : 'ВЫКЛ';
+
+            setInterval(() => saveGame(false), 3000);
+            window.addEventListener('beforeunload', () => saveGame(false));
+
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
